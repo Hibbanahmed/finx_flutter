@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import 'package:finx_v1/widgets/budget_circle.dart';
 import 'package:finx_v1/widgets/category_tile.dart';
 import 'package:finx_v1/widgets/transaction_tile.dart';
@@ -23,18 +26,40 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    SMSService.startListening(_handleNewTransaction);
+    _requestSmsPermission(); // 🔐 Ask for permission at startup
+    _startSmsListener(); // 📡 Listen to SMS via MethodChannel
   }
 
-  void _handleNewTransaction(Map<String, dynamic> txn) async {
-    String? selectedCategory = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('₹${txn['amount']} debited'),
-          content: Text(
-            'What category should this go to?\n(${txn['merchant']})',
-          ),
+  /// 🔐 Request SMS runtime permission (Android 6+)
+  Future<void> _requestSmsPermission() async {
+    final status = await Permission.sms.status;
+    if (!status.isGranted) {
+      await Permission.sms.request();
+    }
+  }
+
+  /// 📡 Listen to incoming SMS from native Kotlin
+  void _startSmsListener() {
+    const platform = MethodChannel('com.finx.sms/channel');
+
+    platform.setMethodCallHandler((call) async {
+      if (call.method == "onSmsReceived") {
+        final smsBody = call.arguments as String;
+        _handleIncomingSms(smsBody);
+      }
+    });
+  }
+
+  /// 🧠 Parse and categorize SMS
+  void _handleIncomingSms(String sms) async {
+    final parsed = parse(sms);
+
+    if (parsed != null) {
+      String? category = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text("₹${parsed['amount']} debited"),
+          content: Text("Assign to category: ${parsed['merchant']}?"),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, 'Food'),
@@ -53,23 +78,24 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Text('Other'),
             ),
           ],
-        );
-      },
-    );
+        ),
+      );
 
-    if (selectedCategory != null) {
-      setState(() {
-        transactions.insert(0, {
-          'title': txn['merchant'],
-          'amount': txn['amount'].round(),
-          'category': selectedCategory,
-          'date': txn['date'],
-          'source': 'SMS',
+      if (category != null) {
+        setState(() {
+          transactions.add({
+            'title': parsed['merchant'],
+            'amount': parsed['amount'],
+            'category': category,
+            'date': parsed['date'],
+            'source': 'SMS',
+          });
         });
-      });
+      }
     }
   }
 
+  /// 🖼️ Main UI layout
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -110,17 +136,15 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ...transactions
-                .map(
-                  (txn) => TransactionTile(
-                    title: txn['title'],
-                    amount: txn['amount'],
-                    category: txn['category'],
-                    date: txn['date'],
-                    source: txn['source'],
-                  ),
-                )
-                .toList(),
+            ...transactions.map(
+              (txn) => TransactionTile(
+                title: txn['title'],
+                amount: txn['amount'],
+                category: txn['category'],
+                date: txn['date'],
+                source: txn['source'],
+              ),
+            ),
           ],
         ),
       ),

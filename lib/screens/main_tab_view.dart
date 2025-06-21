@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:finx_flutter/screens/home_screen.dart';
-import 'package:finx_flutter/screens/chatbox_screen.dart';
-import 'package:finx_flutter/screens/profile_screen.dart';
+import 'package:finx_v1/screens/home_screen.dart';
+import 'package:finx_v1/screens/chatbox_screen.dart';
+import 'package:finx_v1/screens/profile_screen.dart';
 
 class MainTabView extends StatefulWidget {
   const MainTabView({super.key});
 
   @override
-  _MainTabViewState createState() => _MainTabViewState();
+  MainTabViewState createState() => MainTabViewState();
 }
 
-class _MainTabViewState extends State<MainTabView> {
+class MainTabViewState extends State<MainTabView> {
   int _currentIndex = 0;
 
   final List<Widget> _tabs = [HomeScreen(), ChatboxScreen(), ProfileScreen()];
